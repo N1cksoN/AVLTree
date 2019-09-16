@@ -1,6 +1,9 @@
 #include <iostream>
 #include <stdexcept>
 #include <vector>
+#include <string>
+#include <sstream>
+
 
 template< class TData >
 class Tree {
@@ -14,8 +17,7 @@ public:
 	}
 
 public:
-	typedef int TIndex;
-	typedef enum { TREE_LEFT=-1, TREE_EQUAL=0, TREE_RIGHT=1 } TCompare;
+	typedef long long TIndex;
 
 private:
 	TData data;
@@ -57,16 +59,6 @@ public:
 		return this;
 	}
 
-private:
-	Tree<TData> * setLeft( Tree<TData> * tree ) {
-		this->left = tree;
-		return this;
-	}
-	Tree<TData> * setRight( Tree<TData> * tree ) {
-		this->right = tree;
-		return this;
-	}
-
 public:
 	TIndex amount() const {
 		return 1 + this->amountLeft() + this->amountRight();
@@ -76,6 +68,9 @@ public:
 	}
 	TIndex amountRight() const {
 		return this->right==nullptr ? 0 : this->right->amount();
+	}
+	TIndex amountDiff() const {
+		return this->amountLeft() - this->amountRight();
 	}
 
 public:
@@ -107,22 +102,40 @@ public:
 	TIndex depthRight() const {
 		return this->right==nullptr ? 0 : this->right->depth();
 	}
+	TIndex depthDiff() const {
+		return this->depthLeft() - this->depthRight();
+	}
 
 public:
-	void print( TIndex it = 0 ) const {
-		for ( TIndex i=0; i<it; i++) {
-			std::cout << " ";
-		}
-		std::cout << this->data << std::endl;
+	Tree<TData> * print( TIndex it = 0 ) {
+		auto tab = [ ]( TIndex size ) -> std::string {
+			std::stringstream s;
+			for ( TIndex i=0; i<size; s << "\t", i++);
+			return s.str();
+		};
+		std::cout << tab( it ) << this->data << std::endl;
 		if ( this->left!=nullptr ) {
 			this->left->print( it + 1 );
+		} else if ( this->right!=nullptr ) {
+			std::cout << tab( it + 1 ) << "-" << std::endl;
 		}
 		if ( this->right!=nullptr ) {
 			this->right->print( it + 1 );
+		} else if ( this->left!=nullptr ) {
+			std::cout << tab( it + 1 ) << "-" << std::endl;
 		}
+		return this;
 	}
 
 private:
+	Tree<TData> * setLeft( Tree<TData> * tree ) {
+		this->left = tree;
+		return this;
+	}
+	Tree<TData> * setRight( Tree<TData> * tree ) {
+		this->right = tree;
+		return this;
+	}
 	Tree<TData> * remove() {
 		Tree<TData> * left = this->left;
 		Tree<TData> * right = this->right;
@@ -152,67 +165,105 @@ private:
 
 public:
 	Tree<TData> * push( TData data ) {
+		typedef enum { TREE_LEFT=-1, TREE_EQUAL=0, TREE_RIGHT=1 } TCompare;
 		auto compare = [ ] ( TData a, TData b ) -> TCompare {
-			return a < b ? TREE_LEFT : a > b ? TREE_RIGHT : TREE_EQUAL;
+			return a > b ? TREE_LEFT : a < b ? TREE_RIGHT : TREE_EQUAL;
 		};
-		if ( this->data == data ) {
+		if ( compare( this->data, data ) == TREE_EQUAL ) {
 			return this->remove();
 		} else {
-			
+			for ( Tree<TData> * p=this; true; ) {
+				switch ( compare( p->data, data ) ) {
+					case TREE_LEFT:
+						if ( p->left==nullptr ) {
+							p->setLeft( data );
+							return this;
+						} else if ( compare( p->left->data, data ) == TREE_EQUAL ) {
+							p->setLeft( p->left->remove() );
+							return this;
+						}
+						p = p->left;
+						break;
+					case TREE_RIGHT:
+						if ( p->right==nullptr ) {
+							p->setRight( data );
+							return this;
+						} else if ( compare( p->right->data, data ) == TREE_EQUAL ) {
+							p->setRight( p->right->remove() );
+							return this;
+						}
+						p = p->right;						
+						break;
+					case TREE_EQUAL:
+					default:
+						throw std::runtime_error( "???" );
+				}
+			}
 		}
-		return nullptr;
-		// for ( Tree<TData> * p = this->root; p!=nullptr; ) {
-		// 	switch ( cmp( p->getData(), data ) ) {
-		// 		case TREE_LEFT:
-		// 			if ( p->getLeft()==nullptr ) {
-		// 				p->setLeft( data );
-		// 				return;
-		// 			} else {
-		// 				p = p->getLeft();
-		// 				break;
-		// 			}
-		// 		case TREE_RIGHT:
-		// 			if ( p->getRight()==nullptr ) {
-		// 				p->setRight( data );
-		// 				return;
-		// 			} else {
-		// 				p = p->getRight();
-		// 				break;
-		// 			}
-		// 		case TREE_EQUAL:
-		// 		default:
-		// 			// TODO search where to add ...
-		// 			break;
-		// 	}
-		// }		
 	}
 
+private:
+// public:
+	// https://ru.wikipedia.org/wiki/%D0%90%D0%92%D0%9B-%D0%B4%D0%B5%D1%80%D0%B5%D0%B2%D0%BE
+	Tree<TData> * rotateLeft( ) {
+		Tree<TData> * root = this;
+		Tree<TData> * right = this->right;
+		Tree<TData> * rightLeft = this->right->left;
+		root->setRight( rightLeft );
+		right->setLeft( root );
+		return right;
+	}
+	Tree<TData> * rotateRight( ) {
+		Tree<TData> * root = this;
+		Tree<TData> * left = this->left;
+		Tree<TData> * leftRight = this->left->right;
+		root->setLeft( leftRight );
+		left->setRight( root );
+		return left;
+	}
+	Tree<TData> * rotateBigLeft( ) {
+		return this;
+	}
+	Tree<TData> * rotateBigRight( ) {
+		return this;
+	}
 
+public:
+	Tree<TData> * balance( ) {
+		if ( this->amountDiff()>1 && this->left->amountDiff()>=0 ) {
+			// small right routation
+			return this->rotateRight();
+		}
+		else if ( -this->amountDiff()>1 && -this->left->amountDiff()>=0 ) {
+			// small left routation
+			return this->rotateLeft();
+		}
+		// if ( fabs( this->amountDiff() ) <= 1 ) {
+
+		// }
+		return this;
+	}
 };
 
-// 	
 
 
-
-// public:
-// 	void balance () {
-// 		// TODO: balance 
-// 	}
-
-// };
 
 
 int main () {
-	Tree<int> * tree = nullptr;
-	tree = Tree<int>::init( 10 );
-	tree->setLeft( 5 );
-	tree->getLeft( )->setLeft( 3 );
-	tree->getLeft( )->setRight( 7 );
-	tree->setRight( 15 );
-	tree->getRight( )->setLeft( 13 );
-	tree->getRight( )->setRight( 17 );
-	tree->print();
-
-		
+	typedef Tree<int> iTree;
+	iTree * tree = iTree::init( 10 )
+		->push( 5 )
+		->push( 15 )
+		->push( 3 )
+		->push( 7 )
+		->push( 17 )
+		->push( 13 )
+		->push( 19 )
+		->push( 29 )
+		->push( 22 )
+		->push( 23 )
+		// ->rotateLeft()
+		->print();
+	delete tree;	
 }
 
